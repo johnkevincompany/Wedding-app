@@ -17,12 +17,12 @@ const API_KEY = "AIzaSyCTXN2lJu1q6E97Zv2gCp8JswB3La2mYRI";
 // 2. FIREBASE CONFIGURATION
 // Get this from: Firebase Console -> Project Settings -> General -> Your Apps -> SDK Setup
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBWABAkrl-MZB_AbV9A8744hCesBN9bZ-I",
-  authDomain: "weddingvault-6b4ec.firebaseapp.com",
-  projectId: "weddingvault-6b4ec",
-  storageBucket: "weddingvault-6b4ec.firebasestorage.app",
-  messagingSenderId: "829680475008",
-  appId: "1:829680475008:web:09405ed3fc791327b27f65"
+  apiKey: "AIzaSyATmuS1GELq3l9eqgz4Gm0z1djhDfsGc_E",
+  authDomain: "wedding-gallery-e42c7.firebaseapp.com",
+  projectId: "wedding-gallery-e42c7",
+  storageBucket: "wedding-gallery-e42c7.firebasestorage.app",
+  messagingSenderId: "1066156219778",
+  appId: "1:1066156219778:web:24c5960afb2bfb0aa6839b"
 };
 
 
