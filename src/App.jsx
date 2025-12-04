@@ -12,7 +12,7 @@ import { getFirestore, collection, addDoc, onSnapshot } from "firebase/firestore
 
 
 // 1. GEMINI API KEY
-const API_KEY = "AIzaSyCTXN2lJu1q6E97Zv2gCp8JswB3La2mYRI";
+const API_KEY = "AIzaSyCx-8lga_xe_xiuCfFLiM9GDyxq707i_MY";
 
 
 // 2. FIREBASE CONFIGURATION
@@ -418,41 +418,50 @@ const Gallery = ({ user, onBack, onSwitchToCamera, isAdmin }) => {
 
 // --- Main App Container ---
 export default function App() {
- const [user, setUser] = useState(null);
- const [userName, setUserName] = useState('');
- const [view, setView] = useState('welcome');
- const [installPrompt, setInstallPrompt] = useState(null);
- const [isAdmin, setIsAdmin] = useState(false);
+    const [user, setUser] = useState(null);
+    const [userName, setUserName] = useState('');
+    const [view, setView] = useState('loading'); // Start as loading
+    const [installPrompt, setInstallPrompt] = useState(null);
+    const [isAdmin, setIsAdmin] = useState(false);
 
+    useEffect(() => {
+        const authUnsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+            if (currentUser) {
+                const savedName = localStorage.getItem('wedding_guest_name');
+                const adminPass = sessionStorage.getItem('admin_pass');
+                if (adminPass === 'password') {
+                    setIsAdmin(true);
+                    setUserName("Admin");
+                    setView('gallery');
+                } else if (savedName) {
+                    setIsAdmin(false);
+                    setUserName(savedName);
+                    setView('camera');
+                } else {
+                    setView('welcome');
+                }
+            } else {
+                // No user, but maybe they are still in the process of anonymous sign-in
+                // Don't switch to welcome immediately, wait for sign-in to attempt
+            }
+        });
 
- useEffect(() => {
-   signInAnonymously(auth).catch(console.error);
-   const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-     if (currentUser) {
-        setUser(currentUser);
-        const savedName = localStorage.getItem('wedding_guest_name');
-        const adminPass = sessionStorage.getItem('admin_pass');
-        if (adminPass === 'password') {
-            setIsAdmin(true);
-            setUserName("Admin");
-            setView('gallery');
-        } else if (savedName) {
-            setIsAdmin(false);
-            setUserName(savedName);
-            setView('camera');
-        }
-     }
-   });
+        const pwaUnsubscribe = window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            setInstallPrompt(e);
+        });
+        
+        signInAnonymously(auth).catch((error) => {
+            console.error("Anonymous sign-in failed:", error);
+            setView('welcome'); // Go to welcome on auth failure
+        });
 
-
-   window.addEventListener('beforeinstallprompt', (e) => {
-     e.preventDefault();
-     setInstallPrompt(e);
-   });
-
-
-   return () => unsubscribe();
- }, []);
+        return () => {
+            authUnsubscribe();
+            window.removeEventListener('beforeinstallprompt', pwaUnsubscribe);
+        };
+    }, []);
 
 
  const handleJoin = (name) => {
@@ -487,7 +496,9 @@ export default function App() {
  };
 
 
- if (!user) return <div className="h-screen flex items-center justify-center bg-[#faf9f6]">Loading...</div>;
+ if (view === 'loading') {
+    return <div className="h-screen flex items-center justify-center bg-[#faf9f6]">Loading...</div>;
+ }
 
 
  return (
