@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Video, Image as ImageIcon, Download, Share2, X, ChevronLeft, Save, Sparkles, MessageSquareText, Wand2, AlertTriangle, CheckCircle, Heart, Smartphone } from 'lucide-react';
+import { Camera, Video, Image as ImageIcon, Download, Share2, X, ChevronLeft, Save, Sparkles, MessageSquareText, Wand2, AlertTriangle, CheckCircle, Heart, Smartphone, UploadCloud } from 'lucide-react';
 import { initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { getFirestore, collection, addDoc, onSnapshot } from "firebase/firestore";
@@ -10,6 +10,7 @@ import { getFirestore, collection, addDoc, onSnapshot } from "firebase/firestore
 // ==========================================
 
 
+
 // 1. GEMINI API KEY
 const API_KEY = "AIzaSyCTXN2lJu1q6E97Zv2gCp8JswB3La2mYRI";
 
@@ -17,13 +18,13 @@ const API_KEY = "AIzaSyCTXN2lJu1q6E97Zv2gCp8JswB3La2mYRI";
 // 2. FIREBASE CONFIGURATION
 // Get this from: Firebase Console -> Project Settings -> General -> Your Apps -> SDK Setup
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyATmuS1GELq3l9eqgz4Gm0z1djhDfsGc_E",
-  authDomain: "wedding-gallery-e42c7.firebaseapp.com",
-  projectId: "wedding-gallery-e42c7",
-  storageBucket: "wedding-gallery-e42c7.firebasestorage.app",
-  messagingSenderId: "1066156219778",
-  appId: "1:1066156219778:web:24c5960afb2bfb0aa6839b"
-};
+    apiKey: "AIzaSyCx-8lga_xe_xiuCfFLiM9GDyxq707i_MY",
+    authDomain: "wedding-app-14609698-a717a.firebaseapp.com",
+    projectId: "wedding-app-14609698-a717a",
+    storageBucket: "wedding-app-14609698-a717a.firebasestorage.app",
+    messagingSenderId: "831947215506",
+    appId: "1:831947215506:web:1743aa75a00c23fc838c4b"
+  };
 
 
 const APP_TITLE = "Gabriella & John";
@@ -51,7 +52,7 @@ async function generateGeminiContent(prompt, imageBase64 = null) {
      parts.push({ inlineData: { mimeType: "image/jpeg", data: cleanBase64 } });
    }
    const response = await fetch(
-     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`,
+     `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${API_KEY}`,
      {
        method: 'POST',
        headers: { 'Content-Type': 'application/json' },
@@ -120,225 +121,184 @@ const WelcomeScreen = ({ onJoin, installPrompt }) => {
 };
 
 
-// 2. Camera Component
+// 2. Camera & Upload Component
 const CameraCapture = ({ user, userName, onSwitchToGallery, onSwitchToToast }) => {
- const videoRef = useRef(null);
- const [stream, setStream] = useState(null);
- const [capturedImage, setCapturedImage] = useState(null); // High Res (For User)
- const [caption, setCaption] = useState('');
- const [isGenerating, setIsGenerating] = useState(false);
- const [uploading, setUploading] = useState(false);
- const [cameraError, setCameraError] = useState(null);
- const [facingMode, setFacingMode] = useState('environment');
+  const fileInputRef = useRef(null);
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [caption, setCaption] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
 
- const startCamera = async () => {
-   try {
-     if (stream) {
-       stream.getTracks().forEach(track => track.stop());
-     }
-     const newStream = await navigator.mediaDevices.getUserMedia({
-       video: {
-         facingMode: { ideal: facingMode }, // "ideal" allows fallback
-         width: { ideal: 1920 },
-         height: { ideal: 1080 }
-       },
-       audio: false
-     });
-     setStream(newStream);
-     if (videoRef.current) {
-       videoRef.current.srcObject = newStream;
-     }
-     setCameraError(null);
-   } catch (err) {
-     console.error("Camera error:", err);
-     setCameraError("Camera access denied. Please check your settings.");
-   }
- };
+  const handleImageSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setCapturedImage(e.target.result);
+        setCaption('');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
 
- useEffect(() => {
-   startCamera();
-   return () => {
-     if (stream) stream.getTracks().forEach(track => track.stop());
-   };
- }, [facingMode]);
+  const triggerFileSelect = () => {
+    fileInputRef.current?.click();
+  };
 
 
- const takePhoto = () => {
-   if (!videoRef.current) return;
-   const canvas = document.createElement('canvas');
-   const video = videoRef.current;
-  
-   // Use actual video dimensions for highest quality
-   canvas.width = video.videoWidth;
-   canvas.height = video.videoHeight;
-  
-   const ctx = canvas.getContext('2d');
-   if (facingMode === 'user') {
-     ctx.translate(canvas.width, 0);
-     ctx.scale(-1, 1);
-   }
-   ctx.drawImage(video, 0, 0);
-  
-   // Save full resolution for user download
-   setCapturedImage(canvas.toDataURL('image/jpeg', 0.9));
-   setCaption('');
- };
+  const handleMagicCaption = async () => {
+    if (!capturedImage) return;
+    setIsGenerating(true);
+    const prompt = "Look at this wedding photo. Write a short, fun, and celebratory caption for Gabriella & John's wedding (March 2026). Keep it under 15 words.";
+    const aiCaption = await generateGeminiContent(prompt, capturedImage);
+    setCaption(aiCaption.trim());
+    setIsGenerating(false);
+  };
 
 
- const handleMagicCaption = async () => {
-   if (!capturedImage) return;
-   setIsGenerating(true);
-   const prompt = "Look at this wedding photo. Write a short, fun, and celebratory caption for Gabriella & John's wedding (March 2026). Keep it under 15 words.";
-  
-   // Send a smaller version to AI to save bandwidth
-   const aiCaption = await generateGeminiContent(prompt, capturedImage);
-   setCaption(aiCaption.trim());
-   setIsGenerating(false);
- };
+  const compressImage = (dataUrl, maxWidth, quality) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = dataUrl;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const scale = maxWidth / img.width;
+        canvas.width = maxWidth;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+    });
+  };
 
 
- const compressImage = (dataUrl, maxWidth, quality) => {
-   return new Promise((resolve) => {
-     const img = new Image();
-     img.src = dataUrl;
-     img.onload = () => {
-       const canvas = document.createElement('canvas');
-       const scale = maxWidth / img.width;
-       canvas.width = maxWidth;
-       canvas.height = img.height * scale;
-       const ctx = canvas.getContext('2d');
-       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-       resolve(canvas.toDataURL('image/jpeg', quality));
-     };
-   });
- };
+  const savePhoto = async () => {
+    if (!capturedImage || !user) return;
+    setUploading(true);
 
 
- const savePhoto = async () => {
-   if (!capturedImage || !user) return;
-   setUploading(true);
+    try {
+      // Don't auto-download, let user do it from gallery
+      // Upload to Firestore (COMPRESSED to fit 1MB limit)
+      let uploadUrl = await compressImage(capturedImage, 1200, 0.8);
+      
+      try {
+        await addDoc(collection(db, 'wedding_photos'), {
+          url: uploadUrl,
+          author: userName,
+          caption: caption,
+          timestamp: Date.now(),
+          type: 'photo'
+        });
+      } catch (e) {
+        if (e.message.includes("bytes")) { // Firestore size limit error
+          console.log("Image too big, compressing more...");
+          uploadUrl = await compressImage(capturedImage, 800, 0.7);
+          await addDoc(collection(db, 'wedding_photos'), {
+            url: uploadUrl,
+            author: userName,
+            caption: caption,
+            timestamp: Date.now(),
+            type: 'photo'
+          });
+        } else {
+            throw e;
+        }
+      }
 
 
-   try {
-     // 1. Download to User's Device (FULL QUALITY)
-     const link = document.createElement('a');
-     link.href = capturedImage;
-     link.download = `Gabriella-John-Wedding-${Date.now()}.jpg`;
-     document.body.appendChild(link);
-     link.click();
-     document.body.removeChild(link);
+      setCapturedImage(null);
+    } catch (error) {
+      console.error("Save error", error);
+      alert("Couldn't share to the feed. Please check your connection and try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
 
-     // 2. Upload to Firestore (COMPRESSED to fit 1MB limit)
-     // Attempt 1: High Quality (1200px)
-     let uploadUrl = await compressImage(capturedImage, 1200, 0.8);
-    
-     try {
-       await addDoc(collection(db, 'wedding_photos'), {
-         url: uploadUrl,
-         author: userName,
-         caption: caption,
-         timestamp: Date.now(),
-         type: 'photo'
-       });
-     } catch (e) {
-       // If fails (too big), compress harder (800px)
-       console.log("Image too big, compressing more...");
-       uploadUrl = await compressImage(capturedImage, 800, 0.7);
-       await addDoc(collection(db, 'wedding_photos'), {
-         url: uploadUrl,
-         author: userName,
-         caption: caption,
-         timestamp: Date.now(),
-         type: 'photo'
-       });
-     }
+  if (capturedImage) {
+    return (
+      <div className="fixed inset-0 bg-stone-900 z-50 flex flex-col overflow-y-auto">
+        <div className="flex-1 flex flex-col">
+          <div className="relative flex-grow flex items-center justify-center p-4">
+            <img src={capturedImage} alt="Captured" className="max-h-[60vh] rounded-lg shadow-2xl" />
+          </div>
+          <div className="px-6 py-4 bg-white rounded-t-3xl shadow-negative">
+            <div className="mb-4">
+               <div className="flex justify-between items-center mb-2">
+                 <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Caption</label>
+                 <button
+                   onClick={handleMagicCaption}
+                   disabled={isGenerating}
+                   className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full flex items-center font-bold"
+                 >
+                   {isGenerating ? <Wand2 className="animate-spin mr-1 h-3 w-3"/> : <Sparkles className="mr-1 h-3 w-3" />}
+                   {isGenerating ? "Thinking..." : "Magic Caption"}
+                 </button>
+               </div>
+               <textarea
+                 value={caption}
+                 onChange={(e) => setCaption(e.target.value)}
+                 placeholder="Write a caption..."
+                 className="w-full p-3 bg-stone-50 rounded-lg border border-stone-200 text-stone-700 text-sm focus:outline-none focus:ring-2 focus:ring-[#8da399]"
+                 rows={2}
+               />
+            </div>
+            <div className="flex gap-3 pb-safe">
+              <button onClick={() => setCapturedImage(null)} className="flex-1 py-3 rounded-lg bg-stone-100 text-stone-600 font-medium">Cancel</button>
+              <button onClick={savePhoto} disabled={uploading} className={`flex-2 w-full py-3 rounded-lg text-white font-medium shadow-lg flex justify-center items-center ${THEME.button} ${uploading ? 'opacity-50' : ''}`}>
+                {uploading ? 'Sharing...' : <><Save size={18} className="mr-2" /> Share to Gallery</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
 
-     setCapturedImage(null);
-   } catch (error) {
-     console.error("Save error", error);
-     alert("Saved to your phone, but couldn't share to the feed (Internet issue?).");
-   } finally {
-     setUploading(false);
-   }
- };
-
-
- if (capturedImage) {
-   return (
-     <div className="fixed inset-0 bg-stone-900 z-50 flex flex-col overflow-y-auto">
-       <div className="flex-1 flex flex-col">
-         <div className="relative flex-grow flex items-center justify-center p-4">
-           <img src={capturedImage} alt="Captured" className="max-h-[60vh] rounded-lg shadow-2xl" />
-         </div>
-         <div className="px-6 py-4 bg-white rounded-t-3xl shadow-negative">
-           <div className="mb-4">
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Caption</label>
-                <button
-                  onClick={handleMagicCaption}
-                  disabled={isGenerating}
-                  className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full flex items-center font-bold"
-                >
-                  {isGenerating ? <Wand2 className="animate-spin mr-1 h-3 w-3"/> : <Sparkles className="mr-1 h-3 w-3" />}
-                  {isGenerating ? "Thinking..." : "Magic Caption"}
+  return (
+    <div className={`fixed inset-0 ${THEME.bg} flex flex-col z-40`}>
+        <div className="bg-white shadow-sm sticky top-0 z-10 p-4 pt-safe flex justify-between items-center">
+            <div className="font-serif text-xl text-stone-800">{APP_TITLE}</div>
+            <div className="flex gap-2">
+                <button onClick={onSwitchToToast} className="bg-stone-100 text-stone-600 p-2 rounded-full">
+                    <MessageSquareText size={20} />
                 </button>
-              </div>
-              <textarea
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                placeholder="Write a caption..."
-                className="w-full p-3 bg-stone-50 rounded-lg border border-stone-200 text-stone-700 text-sm focus:outline-none focus:ring-2 focus:ring-[#8da399]"
-                rows={2}
-              />
-           </div>
-           <div className="flex gap-3 pb-safe">
-             <button onClick={() => setCapturedImage(null)} className="flex-1 py-3 rounded-lg bg-stone-100 text-stone-600 font-medium">Retake</button>
-             <button onClick={savePhoto} disabled={uploading} className={`flex-2 w-full py-3 rounded-lg text-white font-medium shadow-lg flex justify-center items-center ${THEME.button} ${uploading ? 'opacity-50' : ''}`}>
-               {uploading ? 'Sharing...' : <><Save size={18} className="mr-2" /> Save & Share</>}
-             </button>
-           </div>
-         </div>
-       </div>
-     </div>
-   );
- }
-
-
- return (
-   <div className="fixed inset-0 bg-black flex flex-col z-40">
-     <div className="absolute top-0 left-0 right-0 z-10 p-4 pt-safe flex justify-between items-center bg-gradient-to-b from-black/60 to-transparent">
-       <div className="text-white text-xs font-medium tracking-widest uppercase shadow-sm">{userName}</div>
-       <div className="flex gap-2">
-         <button onClick={onSwitchToToast} className="bg-white/20 backdrop-blur-md text-white px-3 py-2 rounded-full text-sm font-medium flex items-center">
-            <MessageSquareText size={16} className="mr-1" />
-         </button>
-         <button onClick={onSwitchToGallery} className="bg-white/20 backdrop-blur-md text-white px-3 py-2 rounded-full text-sm font-medium flex items-center">
-           <ImageIcon size={16} className="mr-1" /> Gallery
-         </button>
-       </div>
-     </div>
-     <div className="flex-1 relative overflow-hidden bg-stone-900">
-       {cameraError ? (
-         <div className="flex items-center justify-center h-full text-white p-8 text-center">{cameraError}</div>
-       ) : (
-         <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-       )}
-     </div>
-     <div className="bg-black/80 backdrop-blur-sm p-8 pb-12 pb-safe flex justify-around items-center">
-        <button className="p-4 rounded-full bg-white/10 text-white opacity-50"><Video size={24} /></button>
-       <button onClick={takePhoto} className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center relative group">
-         <div className="w-16 h-16 bg-white rounded-full group-active:scale-90 transition-transform"></div>
-       </button>
-       <button onClick={() => setFacingMode(p => p === 'user' ? 'environment' : 'user')} className="p-4 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all">
-         <Share2 size={24} className="rotate-90" />
-       </button>
-     </div>
-   </div>
- );
+                <button onClick={onSwitchToGallery} className="bg-stone-100 text-stone-600 p-2 rounded-full">
+                <ImageIcon size={20} />
+                </button>
+            </div>
+        </div>
+        
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+            <div className="mb-8">
+                <h2 className="text-3xl font-serif text-stone-800 mb-2">Welcome, {userName}!</h2>
+                <p className="text-stone-500">Share a photo to the wedding gallery.</p>
+            </div>
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImageSelect}
+                accept="image/*"
+                capture="environment" // Prioritizes back camera
+                className="hidden"
+            />
+            <button
+                onClick={triggerFileSelect}
+                className={`w-full max-w-xs py-5 px-6 rounded-2xl font-semibold tracking-wide transition-all transform active:scale-95 shadow-lg flex items-center justify-center text-lg ${THEME.button}`}
+            >
+                <UploadCloud size={24} className="mr-3" />
+                Upload Photo
+            </button>
+            <p className="text-xs text-stone-400 mt-4">Opens your camera or photo library</p>
+        </div>
+    </div>
+  );
 };
 
 
@@ -385,7 +345,7 @@ const ToastAssistant = ({ onBack }) => {
 
 
 // 4. Gallery
-const Gallery = ({ user, onBack }) => {
+const Gallery = ({ user, onBack, onSwitchToCamera, isAdmin }) => {
  const [photos, setPhotos] = useState([]);
  const [loading, setLoading] = useState(true);
 
@@ -394,13 +354,16 @@ const Gallery = ({ user, onBack }) => {
    if (!user) return;
    const q = collection(db, 'wedding_photos');
    const unsubscribe = onSnapshot(q, (snapshot) => {
-     const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+     let fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+     if (!isAdmin) {
+         fetched = fetched.filter(p => p.author === localStorage.getItem('wedding_guest_name'));
+     }
      fetched.sort((a, b) => b.timestamp - a.timestamp);
      setPhotos(fetched);
      setLoading(false);
    }, (e) => { console.error(e); setLoading(false); });
    return () => unsubscribe();
- }, [user]);
+ }, [user, isAdmin]);
 
 
  const downloadImage = (url, author) => {
@@ -416,12 +379,22 @@ const Gallery = ({ user, onBack }) => {
  return (
    <div className={`min-h-screen ${THEME.bg} flex flex-col pt-safe`}>
      <div className="bg-white shadow-sm sticky top-0 z-10 px-4 py-4 flex items-center justify-between">
-       <button onClick={onBack} className="text-stone-600 p-2 -ml-2"><ChevronLeft size={28} /></button>
+       <button onClick={onSwitchToCamera} className="text-stone-600 p-2 -ml-2"><ChevronLeft size={28} /></button>
        <div className="text-center"><h2 className="font-serif text-xl text-stone-800">Shared Moments</h2></div>
        <div className="w-8"></div>
      </div>
      <div className="flex-1 p-4 overflow-y-auto">
-       {loading ? <div className="text-center p-10 text-stone-400">Loading memories...</div> :
+        {loading && <div className="text-center p-10 text-stone-400">Loading memories...</div>}
+        {!loading && photos.length === 0 && (
+            <div className="text-center p-10 text-stone-500 bg-white rounded-lg shadow-sm">
+                <h3 className="font-serif text-lg">No Photos Yet</h3>
+                <p className="text-sm mt-1">{isAdmin ? "The gallery is empty." : "You haven't uploaded any photos yet."}</p>
+                 <button onClick={onSwitchToCamera} className={`mt-4 py-2 px-4 rounded-lg font-medium text-white flex justify-center items-center mx-auto ${THEME.button}`}>
+                    Share Your First Photo
+                 </button>
+            </div>
+        )}
+       {!loading && photos.length > 0 &&
         <div className="grid grid-cols-2 gap-4 pb-20">
            {photos.map(photo => (
              <div key={photo.id} className="bg-white p-2 rounded-lg shadow-sm">
@@ -431,7 +404,8 @@ const Gallery = ({ user, onBack }) => {
                    <button onClick={() => downloadImage(photo.url, photo.author)} className="text-white p-2"><Download size={20} /></button>
                  </div>
                </div>
-               <div className="mt-2 text-xs font-medium text-stone-600 truncate">{photo.author}</div>
+               <p className="text-stone-600 text-xs mt-2 px-1 leading-snug break-words">{photo.caption}</p>
+               <p className="text-stone-400 text-[10px] mt-1 px-1 font-medium truncate uppercase">{photo.author}</p>
              </div>
            ))}
         </div>
@@ -448,22 +422,29 @@ export default function App() {
  const [userName, setUserName] = useState('');
  const [view, setView] = useState('welcome');
  const [installPrompt, setInstallPrompt] = useState(null);
+ const [isAdmin, setIsAdmin] = useState(false);
 
 
  useEffect(() => {
-   // 1. Auth
    signInAnonymously(auth).catch(console.error);
    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-     setUser(currentUser);
-     const savedName = localStorage.getItem('wedding_guest_name');
-     if (savedName && currentUser) {
-       setUserName(savedName);
-       setView('camera');
+     if (currentUser) {
+        setUser(currentUser);
+        const savedName = localStorage.getItem('wedding_guest_name');
+        const adminPass = sessionStorage.getItem('admin_pass');
+        if (adminPass === 'password') {
+            setIsAdmin(true);
+            setUserName("Admin");
+            setView('gallery');
+        } else if (savedName) {
+            setIsAdmin(false);
+            setUserName(savedName);
+            setView('camera');
+        }
      }
    });
 
 
-   // 2. PWA Install Listener
    window.addEventListener('beforeinstallprompt', (e) => {
      e.preventDefault();
      setInstallPrompt(e);
@@ -475,9 +456,22 @@ export default function App() {
 
 
  const handleJoin = (name) => {
-   setUserName(name);
-   localStorage.setItem('wedding_guest_name', name);
-   setView('camera');
+    if (name.toLowerCase() === 'admin') {
+        const pass = prompt("Enter Admin Password:");
+        if (pass === 'password') {
+            sessionStorage.setItem('admin_pass', 'password');
+            setIsAdmin(true);
+            setUserName("Admin");
+            setView('gallery');
+        } else {
+            alert("Incorrect password.");
+        }
+    } else {
+       setUserName(name);
+       localStorage.setItem('wedding_guest_name', name);
+       setIsAdmin(false);
+       setView('camera');
+    }
  };
 
 
@@ -507,9 +501,8 @@ export default function App() {
          onSwitchToToast={() => setView('toast')}
        />
      )}
-     {view === 'gallery' && <Gallery user={user} onBack={() => setView('camera')} />}
+     {view === 'gallery' && <Gallery user={user} onBack={() => setView('camera')} onSwitchToCamera={() => setView('camera')} isAdmin={isAdmin} />}
      {view === 'toast' && <ToastAssistant onBack={() => setView('camera')} />}
    </div>
  );
 }
-
